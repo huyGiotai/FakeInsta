@@ -1,182 +1,71 @@
-# SocialEcho
-
-A social networking platform with automated content moderation and context-based authentication system.
-
-[Watch Demo](https://youtu.be/Tmncayg7FeU)
-
-![UI-community](https://raw.githubusercontent.com/nz-m/SocialEcho/main/resources/UI-community.png)
-
-## Table of Contents
-
-- [Project Overview](#project-overview)
-- [Features](#features)
-- [Technologies](#technologies)
-- [Schema Diagram](#schema-diagram)
-- [Getting Started](#getting-started)
-- [Usage](#usage)
-- [License](#license)
-
-## Project Overview
-
-The project is a social networking platform built using the MERN (MongoDB, Express.js, React.js, Node.js) stack. It incorporates two major features: an automated content moderation system and context-based authentication. These features are accompanied by common functionalities found in social media applications, such as profile creation, post creation and sharing, liking and commenting on posts, and following/unfollowing users.
-
-### Automated Content Moderation
-
-The platform's automated content moderation system utilizes various NLP (Natural Language Processing) APIs. These APIs include:
-
-- Perspective API: Used for filtering spam, profanity, toxicity, harassment etc.
-- TextRazor API: Integrated for content categorization.
-- Hugging Face Interface API: Utilized with BART Large MNLI for content categorization.
-
-A Flask application has been developed to provide similar functionality as the Hugging Face Interface API's classifier. The Flask app utilizes the BART Large MNLI model. It operates as a zero-shot classification pipeline with a PyTorch framework.
-
-The system allows flexibility in choosing different services for API usage or disabling them without affecting overall functionality by using a common interface for interacting with the APIs.
-
-When a user posts content, it undergoes a thorough filtering process to ensure compliance with the community guidelines. Additionally, users have the ability to report posts that they find inappropriate, which triggers a manual review process.
-
-### Context-Based Authentication
-
-The platform implements context-based authentication to enhance user account security. It takes into consideration user location, IP address, and device information for authentication purposes. Users can conveniently manage their devices directly from the platform. To ensure data privacy, this information is encrypted using the AES algorithm and securely stored in the database.
-
-In case of a suspicious login attempt, users are promptly notified via email and are required to confirm their identity to protect against unauthorized access.
-
-### User Roles
-
-There are three distinct user roles within the system:
-
-1. Admin: The admin role manages the overall system, including moderator management, community management, content moderation, monitoring user activity, and more.
-2. Moderators: Moderators manage communities, manually review reported posts, and perform other moderation-related tasks.
-3. General Users: General users have the ability to make posts, like comments, and perform other actions within the platform.
-
-
-
-## Features
-
-- [x] User authentication and authorization (JWT)
-- [x] User profile creation and management
-- [x] Post creation and management
-- [x] Commenting on posts
-- [x] Liking posts and comments
-- [x] Following/unfollowing users
-- [x] Reporting posts
-- [x] Content moderation
-- [x] Context-based authentication
-- [x] Device management
-- [x] Admin dashboard
-- [x] Moderator dashboard
-- [x] Email notifications
-
-
-## Technologies
-
-- React.js
-- Redux
-- Node.js
-- Express.js
-- MongoDB
-- Tailwind CSS
-- JWT Authentication
-- Passport.js
-- Nodemailer
-- Crypto-js
-- Azure Blob Storage
-- Flask
-- Hugging Face Transformers
-
-
-## Schema Diagram
-
-![Schema Diagram](https://raw.githubusercontent.com/nz-m/SocialEcho/main/resources/Schema-Diagram.png)
-
-
-
-## Getting Started
-
-### Prerequisites
-
-Before running the application, make sure you have the following installed:
-
-- Node.js
-- MongoDB or MongoDB Atlas account
-
-### Installation
-
-1. Clone the repository
-
-```bash
-git clone https://github.com/nz-m/SocialEcho.git
-```
-2. Go to the project directory and install dependencies for both the client and server
-
-```bash
-cd client
-npm install
-```
-
-```bash
-cd server
-npm install
-```
-
-3. Create a `.env` file in both the `client` and `server` directories and add the environment variables as shown in the `.env.example` files.
-4. Start the server
-
-```bash
-cd server
-npm start
-```
-
-5. Start the client
-
-```bash
-cd client
-npm start
-```
-
-
-### Configuration
-
-Run the `admin_tool.sh` script from the server directory with permissions for executing the script. This script is used for configuring the admin account, creating the initial communities, and other settings.
-```bash
-./admin_tool.sh
-``` 
-
-#### `.env` Variables
-
-For email service of context-based authentication, the following variables are required:
-
-```bash
-EMAIL=
-PASSWORD=
-EMAIL_SERVICE=
-```
-
-For content moderation, you need the `PERSPECTIVE_API_KEY` and either the `INTERFACE_API_KEY` or `TEXTRAZOR_API_KEY`. Visit the following links to obtain the API keys:
-
-- [Perspective API](https://developers.perspectiveapi.com/s/docs-get-started)
-- [TextRazor API](https://www.textrazor.com/)
-- [Hugging Face Interface API](https://huggingface.co/facebook/bart-large-mnli)
-
-If you prefer, the Flask server can be run locally as an alternative to using the Hugging Face Interface API or TextRazor API. Refer to the `classifier_server` directory for more information.
-
-
->**Note:** Configuration for context-based authentication and content moderation features are **_not mandatory_** to run the application. However, these features will not be available if the configuration is not provided.
-
-
-## Usage
-
-### Admin
-
-The admin dashboard can be accessed at the `/admin` route. Use the `admin_tool.sh` script to configure the admin account. The admin account can be used to manage moderators, communities, and perform other admin-related tasks. You can also enable/disable or switch API services using the admin dashboard.
-
-### Moderator
-
-Moderators have specific email domain (`@mod.socialecho.com`). When registering with an email from this domain, the user is automatically assigned the moderator role. Moderators can be assigned to different communities from the admin dashboard.
-
-#### Demo
-https://youtu.be/Tmncayg7FeU
-
-## License
-
-This project is licensed under the [MIT License](https://github.com/nz-m/SocialEcho/blob/main/LICENSE).
-
+# SocialEcho - Hướng dẫn chi tiết
+
+Đây là tài liệu hướng dẫn cài đặt, chạy và tìm hiểu cấu trúc của dự án mạng xã hội SocialEcho.
+
+## Chức năng chính
+
+-   **Xác thực người dùng:** Đăng ký, đăng nhập, JWT, xác thực dựa trên ngữ cảnh (vị trí, IP, thiết bị).
+-   **Quản lý người dùng:** Tạo và quản lý hồ sơ, theo dõi người dùng khác.
+-   **Bài đăng & Tương tác:** Tạo bài đăng trong các cộng đồng, bình luận, thích bài đăng và bình luận.
+-   **Kiểm duyệt nội dung tự động:** Sử dụng các API xử lý ngôn ngữ tự nhiên (Perspective, TextRazor, Hugging Face) để lọc nội dung độc hại, spam...
+-   **Quản trị:** Bảng điều khiển cho Admin để quản lý người dùng, cộng đồng, và các cài đặt hệ thống.
+-   **Thông báo:** Gửi email thông báo cho các hoạt động bảo mật quan trọng.
+
+## Công nghệ sử dụng
+
+-   **Frontend:** React.js, Redux, Tailwind CSS
+-   **Backend:** Node.js, Express.js
+-   **Cơ sở dữ liệu:** MongoDB
+-   **Xác thực:** Passport.js, JWT
+-   **Dịch vụ khác:** Nodemailer (Email), Crypto-js (Mã hóa), Flask & Hugging Face (AI)
+
+---
+
+## Hướng dẫn cài đặt và chạy dự án
+
+Thực hiện theo các bước sau để chạy dự án trên máy của bạn.
+
+### 1. Yêu cầu cần có
+
+-   **Node.js:** Phiên bản 16.x trở lên.
+-   **MongoDB:** Cài đặt MongoDB Community Server trên máy hoặc sử dụng tài khoản MongoDB Atlas (khuyến khích).
+-   **Git Bash:** (Trên Windows) Để chạy các tệp script `.sh`.
+
+
+
+Cấu trúc và chức năng các thành phần
+Dưới đây là giải thích chi tiết về cấu trúc thư mục và chức năng của các tệp quan trọng.
+
+Thư mục gốc
+client: Chứa toàn bộ mã nguồn của ứng dụng Frontend (React).
+server: Chứa toàn bộ mã nguồn của ứng dụng Backend (Node.js/Express).
+classifier_server: (Tùy chọn) Chứa mã nguồn của một server AI bằng Python/Flask để phân loại nội dung.
+server (Backend)
+config/:
+db.js: Chứa logic kết nối đến cơ sở dữ liệu MongoDB.
+passport.js: Cấu hình chiến lược xác thực JWT bằng Passport.js.
+controllers/: Chứa logic xử lý cho các route. Ví dụ, postController.js sẽ chứa các hàm như createPost, getPostById, deletePost.
+middleware/:
+auth.js: Middleware để kiểm tra xem người dùng đã đăng nhập và có token hợp lệ hay không trước khi cho phép truy cập một route.
+error.js: Middleware để bắt và xử lý các lỗi một cách tập trung.
+models/: Định nghĩa cấu trúc (schema) cho các đối tượng trong cơ sở dữ liệu MongoDB bằng Mongoose. Mỗi file tương ứng với một collection (ví dụ: user.model.js, post.model.js).
+routes/: Định nghĩa các điểm cuối (endpoints) của API. Ví dụ, routes/api/posts.js sẽ định nghĩa các route như POST /api/posts, GET /api/posts/:id.
+scripts/: Chứa các script tiện ích để quản trị.
+admin_tool.sh: Menu chính để gọi các script khác.
+create-admin.js: Script tạo tài khoản admin.
+add-community.js: Script thêm cộng đồng mẫu vào CSDL.
+app.js: Tệp chính khởi tạo và cấu hình server Express, kết nối các middleware và các tệp route.
+client (Frontend)
+public/: Chứa các tài sản tĩnh.
+index.html: Tệp HTML gốc mà React sẽ gắn ứng dụng vào.
+src/: Thư mục mã nguồn chính của ứng dụng React.
+assets/: Chứa hình ảnh, icon, và các tài sản khác.
+components/: Chứa các thành phần UI có thể tái sử dụng (ví dụ: Button.js, Navbar.js, PostCard.js).
+pages/: Chứa các thành phần đại diện cho một trang hoàn chỉnh (ví dụ: HomePage.js, LoginPage.js, ProfilePage.js).
+redux/: Chứa toàn bộ logic quản lý trạng thái toàn cục bằng Redux Toolkit.
+store.js: Nơi tạo và cấu hình Redux store.
+slices/: Mỗi slice quản lý một phần của trạng thái ứng dụng (ví dụ: authSlice.js quản lý trạng thái đăng nhập, postSlice.js quản lý danh sách bài đăng).
+services/: Chứa các hàm để giao tiếp với API của backend. Ví dụ, postService.js sẽ chứa các hàm như createPost(postData), getAllPosts().
+utils/: Chứa các hàm tiện ích nhỏ, có thể tái sử dụng (ví dụ: formatDate.js).
+App.js: Thành phần gốc của ứng dụng, nơi định tuyến (routing) các trang được thiết lập.
+index.js: Điểm vào của ứng dụng, nơi render App.js vào DOM.
