@@ -293,9 +293,8 @@ const addUser = async (req, res, next) => {
   const defaultAvatar =
     "https://raw.githubusercontent.com/nz-m/public-files/main/dp.jpg";
   const fileUrl = req.files?.[0]?.filename
-    ? `${req.protocol}://${req.get("host")}/assets/userAvatars/${
-        req.files[0].filename
-      }`
+    ? `${req.protocol}://${req.get("host")}/assets/userAvatars/${req.files[0].filename
+    }`
     : defaultAvatar;
 
   const emailDomain = req.body.email.split("@")[1];
@@ -434,24 +433,45 @@ const getModProfile = async (req, res) => {
  */
 const updateInfo = async (req, res) => {
   try {
-    const user = await User.findById(req.userId);
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found",
+    // Security Check: Đảm bảo người dùng chỉ cập nhật hồ sơ của chính họ
+    if (req.userId !== req.params.id) {
+      return res.status(403).json({
+        message: "Forbidden: You can only update your own profile.",
       });
     }
 
-    const { location, interests, bio } = req.body;
+    // 1. Chuẩn bị dữ liệu cần cập nhật
+    const updateData = {};
+    const { name, location, interests, bio } = req.body;
 
-    user.location = location;
-    user.interests = interests;
-    user.bio = bio;
+    // Chỉ thêm các trường vào đối tượng update nếu chúng được cung cấp trong request
+    // Điều này cho phép người dùng xóa nội dung bằng cách gửi một chuỗi rỗng ""
+    if (name !== undefined) updateData.name = name;
+    if (location !== undefined) updateData.location = location;
+    if (interests !== undefined) updateData.interests = interests;
+    if (bio !== undefined) updateData.bio = bio;
 
-    await user.save();
+    // 2. Xử lý ảnh đại diện mới nếu có
+    if (req.file) {
+      const fileUrl = `/assets/userAvatars/${req.file.filename}`;
+      updateData.avatar = fileUrl;
+    }
 
-    res.status(200).json({
-      message: "User info updated successfully",
-    });
+    // 3. Tìm và cập nhật người dùng trong một thao tác duy nhất
+    // { new: true } đảm bảo rằng hàm sẽ trả về đối tượng user sau khi đã được cập nhật
+    const updatedUser = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: updateData },
+      { new: true }
+    ).select("-password"); // Loại bỏ mật khẩu khỏi kết quả trả về
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // 4. Gửi lại toàn bộ đối tượng người dùng đã được cập nhật cho client
+    res.status(200).json(updatedUser);
+
   } catch (err) {
     res.status(500).json({
       message: "Error updating user info",

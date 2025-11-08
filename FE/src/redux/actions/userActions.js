@@ -1,6 +1,7 @@
 import * as api from "../api/userAPI";
 import * as types from "../constants/userConstants";
 import { getPostsAction, getSavedPostsAction } from "./postActions";
+import { setUserData } from "./authActions";
 
 export const getUserAction = (id) => async (dispatch) => {
   try {
@@ -24,23 +25,38 @@ export const getUserAction = (id) => async (dispatch) => {
 
 export const updateUserAction = (id, formData) => async (dispatch) => {
   try {
+    dispatch({ type: types.GET_USER_REQUEST }); // <-- THÊM DÒNG NÀY
+    // 1. Báo cho Redux biết quá trình cập nhật BẮT ĐẦU
+    dispatch({ type: types.UPDATE_USER_REQUEST });
+
     const { error, data } = await api.updateUser(id, formData);
 
     if (error) {
       throw new Error(error);
     }
 
+    // 2. Báo cho Redux biết quá trình cập nhật THÀNH CÔNG
     dispatch({
-      type: types.GET_USER_SUCCESS,
+      type: types.UPDATE_USER_SUCCESS,
       payload: data,
     });
+
+    // 3. Cập nhật thông tin trong auth state (cho navbar và toàn bộ app)
+    const profile = JSON.parse(localStorage.getItem("profile"));
+    if (profile) {
+      profile.user = data;
+      localStorage.setItem("profile", JSON.stringify(profile));
+      dispatch(setUserData(data));
+    }
   } catch (error) {
+    // 4. Báo cho Redux biết quá trình cập nhật THẤT BẠI
     dispatch({
-      type: types.GET_USER_FAIL,
+      type: types.UPDATE_USER_FAIL,
       payload: error.message,
     });
   }
 };
+
 
 export const getPublicUsersAction = () => async (dispatch) => {
   try {

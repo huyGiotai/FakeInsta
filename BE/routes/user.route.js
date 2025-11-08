@@ -49,7 +49,7 @@ router.get("/:id", requireAuth, getUser);
 router.post(
   "/signup",
   signUpSignInLimiter,
-  avatarUpload,
+  avatarUpload.single("avatar"), // <-- SỬA LỖI 1
   addUserValidator,
   addUserValidatorHandler,
   addUser,
@@ -66,7 +66,13 @@ router.post(
 );
 router.post("/logout", logout);
 
-router.put("/:id", requireAuth, decodeToken, updateInfo);
+router.put(
+  "/:id",
+  requireAuth,
+  decodeToken,
+  avatarUpload.single("avatar"), // <-- SỬA LỖI 2: Đưa middleware xử lý file lên trước
+  updateInfo // <-- Controller chạy sau
+);
 
 router.use(followLimiter);
 router.patch("/:id/follow", requireAuth, decodeToken, followUser);

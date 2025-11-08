@@ -11,11 +11,7 @@ export const getUser = async (id) => {
 
 export const updateUser = async (id, formData) => {
   try {
-    const { data } = await API.put(`/users/${id}`, formData, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const { data } = await API.put(`/users/${id}`, formData);
     return { error: null, data };
   } catch (error) {
     return handleApiError(error);

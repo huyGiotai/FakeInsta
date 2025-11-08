@@ -2,6 +2,7 @@ import * as types from "../constants/userConstants";
 import { LOGOUT } from "../constants/authConstants";
 
 const initialState = {
+  loading: false, // --- THÊM DÒNG NÀY ---
   user: {},
   publicUsers: [],
   publicUserProfile: {},
@@ -25,12 +26,35 @@ const userReducer = (state = initialState, action) => {
         userError: null,
       };
 
+    case types.GET_USER_REQUEST:
+      return { ...state, loading: true };
     case types.GET_USER_SUCCESS:
-      return { ...state, user: payload, userError: null };
-
+      return { ...state, loading: false, user: payload, userError: null };
     case types.GET_USER_FAIL:
-      return { ...state, userError: payload };
+      return { ...state, loading: false, userError: payload };
 
+    case types.UPDATE_USER_REQUEST:
+      return {
+        ...state,
+        loading: true, // Bật loading khi bắt đầu cập nhật
+      };
+    case types.UPDATE_USER_SUCCESS:
+      return {
+        ...state,
+        loading: false,
+        // --- SỬA LỖI CUỐI CÙNG TẠI ĐÂY ---
+        // Thay vì ghi đè `user: payload`, chúng ta hợp nhất nó.
+        // Thao tác này sẽ giữ lại `state.user.posts` và các trường khác,
+        // trong khi cập nhật các trường mới từ `payload` (như name, avatar).
+        user: { ...state.user, ...payload },
+        userError: null,
+      };
+    case types.UPDATE_USER_FAIL:
+      return {
+        ...state,
+        loading: false, // Tắt loading khi thất bại
+        userError: payload,
+      };
     case types.GET_PUBLIC_USERS_SUCCESS:
       return {
         ...state,

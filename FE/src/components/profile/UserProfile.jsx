@@ -1,4 +1,4 @@
-import { useEffect, useState, memo } from "react";
+import { useEffect, memo } from "react"; // Bỏ `useState` không cần thiết
 import { useSelector, useDispatch } from "react-redux";
 import { getUserAction } from "../../redux/actions/userActions";
 import PostOnProfile from "../post/PostOnProfile";
@@ -9,17 +9,20 @@ import NoPost from "../../assets/nopost.jpg";
 
 const UserProfile = ({ userData }) => {
   const dispatch = useDispatch();
-  const [loading, setLoading] = useState(false);
-  const user = useSelector((state) => state.user?.user);
+
+  // --- SỬA ĐỔI 1: LẤY TRẠNG THÁI `loading` TRỰC TIẾP TỪ REDUX ---
+  // Bỏ state `loading` cục bộ và lấy cả `user` và `loading` từ store
+  const { user, loading } = useSelector((state) => state.user);
   const posts = user?.posts;
 
   useEffect(() => {
-    setLoading(true);
-    const fetchUser = async () => {
-      await dispatch(getUserAction(userData._id));
-    };
-    fetchUser().then(() => setLoading(false));
-  }, [dispatch, userData._id]);
+    // --- SỬA ĐỔI 2: ĐƠN GIẢN HÓA `useEffect` ---
+    // Chỉ cần dispatch action. Component sẽ tự động re-render khi
+    // `loading` hoặc `user` trong Redux thay đổi.
+    if (userData?._id) {
+      dispatch(getUserAction(userData._id));
+    }
+  }, [dispatch, userData?._id]);
 
   const MemoizedPostOnProfile = memo(PostOnProfile);
 
@@ -29,9 +32,10 @@ const UserProfile = ({ userData }) => {
     <MemoizedPostOnProfile key={post._id} post={post} />
   ));
 
+  // --- SỬA ĐỔI 3: SỬ DỤNG `loading` TỪ REDUX ĐỂ HIỂN THỊ GIAO DIỆN ---
   return (
     <>
-      {loading || !user || !posts ? (
+      {loading || !user?.posts ? ( // Dùng `loading` từ Redux
         <div className="flex justify-center items-center h-screen">
           <CommonLoading />
         </div>
