@@ -1,5 +1,6 @@
-import { lazy } from "react";
+import React, { lazy } from "react"; // SỬA LỖI: Import React và lazy
 
+// Import trực tiếp các component không dùng lazy loading
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import Post from "./pages/Post";
@@ -11,16 +12,23 @@ import AllCommunities from "./pages/AllCommunities";
 import MyCommunities from "./pages/MyCommunities";
 import Following from "./pages/Following";
 import SignUp from "./pages/SignUp";
+// SỬA LỖI: Bỏ import trực tiếp VerifyEmail ở đây nếu bạn muốn dùng lazy loading
+// import VerifyEmail from "./pages/VerifyEmail"; // Dòng này sẽ bị xóa
 
+// Lazy load các component
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const ReportedPost = lazy(() => import("./pages/ReportedPost"));
 const Moderator = lazy(() => import("./pages/Moderator"));
 const DevicesLocations = lazy(() => import("./pages/DevicesLocations"));
+// SỬA LỖI: Chỉ giữ lại một lazy import cho VerifyEmail
 const VerifyEmail = lazy(() => import("./pages/VerifyEmail"));
 const EmailVerifiedMessage = lazy(() => import("./pages/EmailVerifiedMessage"));
 const BlockDevice = lazy(() => import("./pages/BlockDevice"));
 const LoginVerified = lazy(() => import("./pages/LoginVerified"));
 const AccessDenied = lazy(() => import("./pages/AccessDenied"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const SignIn = lazy(() => import("./pages/SignIn")); // THÊM DÒNG NÀY nếu SignIn cũng dùng lazy
 
 export const privateRoutes = [
   {
@@ -86,9 +94,20 @@ export const publicRoutes = [
     path: "/signup",
     element: <SignUp />,
   },
-
   {
-    path: "/auth/verify",
+    path: "/signin", // THÊM DÒNG NÀY nếu SignIn là public route
+    element: <SignIn />,
+  },
+  {
+    path: "/forgot-password",
+    element: <ForgotPassword />,
+  },
+  {
+    path: "/reset-password/:token/:userId",
+    element: <ResetPassword />,
+  },
+  {
+    path: "/auth/verify", // Route này có vẻ là cho xác thực thiết bị/login, giữ lại
     element: <VerifyEmail />,
   },
   {
@@ -102,6 +121,10 @@ export const publicRoutes = [
   {
     path: "/verify-login",
     element: <LoginVerified />,
+  },
+  {
+    path: "/verify-email", // SỬA LỖI: Đây là route cho xác thực đăng ký
+    element: <VerifyEmail />,
   },
   {
     path: "/access-denied",

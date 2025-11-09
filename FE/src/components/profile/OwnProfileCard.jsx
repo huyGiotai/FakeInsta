@@ -96,12 +96,12 @@ const OwnProfileCard = ({ user }) => {
       </div>
 
       <span className="mt-3 flex flex-col items-center justify-center border-t">
-        <Link
+        {/* <Link
           className="mt-3 cursor-pointer text-primary hover:underline"
           to="/devices-locations"
         >
           Manage Devices and Locations
-        </Link>
+        </Link> */}
       </span>
     </div>
   );

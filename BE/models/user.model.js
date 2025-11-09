@@ -66,6 +66,9 @@ const userSchema = new Schema(
       type: Boolean,
       default: false,
     },
+
+    verificationCode: { type: String }, // THÊM TRƯỜNG NÀY
+    verificationCodeExpires: { type: Date }, // THÊM TRƯỜNG NÀY
   },
   {
     timestamps: true,

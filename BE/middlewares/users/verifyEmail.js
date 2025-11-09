@@ -1,6 +1,4 @@
 const nodemailer = require("nodemailer");
-const UserPreference = require("../../models/preference.model");
-const User = require("../../models/user.model");
 const EmailVerification = require("../../models/email.model");
 const { query, validationResult } = require("express-validator");
 const { verifyEmailHTML } = require("../../utils/emailTemplates");
@@ -10,7 +8,7 @@ const EMAIL_SERVICE = process.env.EMAIL_SERVICE;
 
 const verifyEmailValidation = [
   query("email").isEmail().normalizeEmail(),
-  query("code").isLength({ min: 5, max: 5 }),
+  query("id").isLength({ min: 24, max: 24 }),
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -20,13 +18,16 @@ const verifyEmailValidation = [
   },
 ];
 
-const sendVerificationEmail = async (req, res) => {
+// SỬA LỖI: Đổi tên hàm từ sendVerificationEmail thành verifyEmail
+const verifyEmail = async (req, res, next) => {
   const USER = process.env.EMAIL;
   const PASS = process.env.PASSWORD;
-  const { email, name } = req.body;
 
-  const verificationCode = Math.floor(10000 + Math.random() * 90000);
-  const verificationLink = `${CLIENT_URL}/auth/verify?code=${verificationCode}&email=${email}`;
+  const { email, name } = req.user;
+  const { id } = req.query;
+
+  const verificationLink = `${CLIENT_URL}/auth/verify?id=${id}&email=${email}`;
+  const blockLink = `${CLIENT_URL}/auth/block?id=${id}&email=${email}`;
 
   try {
     let transporter = nodemailer.createTransport({
@@ -40,76 +41,31 @@ const sendVerificationEmail = async (req, res) => {
     let info = await transporter.sendMail({
       from: `"SocialEcho" <${USER}>`,
       to: email,
-      subject: "Verify your email address",
-      html: verifyEmailHTML(name, verificationLink, verificationCode),
+      subject: "Action Required: Verify Your Account",
+      html: verifyEmailHTML(name, verificationLink, blockLink),
     });
 
     const newVerification = new EmailVerification({
       email,
-      verificationCode,
+      verificationCode: id,
       messageId: info.messageId,
-      for: "signup",
+      for: "signup-device",
     });
 
     await newVerification.save();
 
-    res.status(200).json({
-      message: `Verification email was successfully sent to ${email}`,
-    });
+    // SỬA LỖI: Gọi next() để chuyển sang middleware addContextData
+    next();
+
   } catch (err) {
     console.log(
-      "Could not send verification email. There could be an issue with the provided credentials or the email service."
+      "Could not send email. There could be an issue with the provided credentials or the email service."
     );
     res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-const verifyEmail = async (req, res, next) => {
-  const { code, email } = req.query;
-
-  try {
-    const [isVerified, verification] = await Promise.all([
-      User.findOne({ email: { $eq: email }, isEmailVerified: true }),
-      EmailVerification.findOne({
-        email: { $eq: email },
-        verificationCode: { $eq: code },
-      }),
-    ]);
-
-    if (isVerified) {
-      return res.status(400).json({ message: "Email is already verified" });
-    }
-
-    if (!verification) {
-      return res
-        .status(400)
-        .json({ message: "Verification code is invalid or has expired" });
-    }
-
-    const updatedUser = await User.findOneAndUpdate(
-      { email: { $eq: email } },
-      { isEmailVerified: true },
-      { new: true }
-    ).exec();
-
-    await Promise.all([
-      EmailVerification.deleteMany({ email: { $eq: email } }).exec(),
-      new UserPreference({
-        user: updatedUser,
-        enableContextBasedAuth: true,
-      }).save(),
-    ]);
-
-    req.userId = updatedUser._id;
-    req.email = updatedUser.email;
-    next();
-  } catch (error) {
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
 module.exports = {
-  sendVerificationEmail,
-  verifyEmail,
   verifyEmailValidation,
+  verifyEmail, // SỬA LỖI: Export đúng tên hàm
 };

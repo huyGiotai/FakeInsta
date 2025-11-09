@@ -1,106 +1,116 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router";
-import axios from "axios";
-import LoadingSpinner from "../components/loader/ButtonLoadingSpinner";
-
-const BASE_URL = process.env.REACT_APP_API_URL;
+import React, { useState, useEffect } from "react"; // THÊM React
+import { useNavigate } from "react-router-dom"; // SỬA LỖI: Chỉ cần useNavigate
+import { useDispatch, useSelector } from "react-redux";
+import {
+  verifyEmailAction,
+  clearErrors,
+} from "../redux/actions/authActions";
+import { VERIFICATION_SUCCESS_RESET } from "../redux/constants/authConstants";
+import { useDocTitle } from "../hooks/useDocTitle"; // Đảm bảo hook này tồn tại
+import SocialEchoLogo from "../assets/SocialEcho.png"; // Đảm bảo đường dẫn logo đúng
+import { toast } from "react-toastify"; // SỬA LỖI: Import toast
+import ButtonLoadingSpinner from "../components/loader/ButtonLoadingSpinner"; // Đảm bảo component này tồn tại
 
 const VerifyEmail = () => {
-  const [loading, setLoading] = useState(false);
+  useDocTitle("Verify Email");
+  const dispatch = useDispatch();
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const searchParams = new URLSearchParams(location.search);
-  const codeFromUrl = searchParams.get("code");
-  const emailFromUrl = searchParams.get("email");
-  const email = location.state ? location.state : emailFromUrl;
+  const {
+    loading,
+    error,
+    message, // SỬA LỖI: Lấy message từ state
+    pendingVerificationEmail,
+    verificationSuccess,
+  } = useSelector((state) => state.auth);
 
-  const [code, setCode] = useState(codeFromUrl ? codeFromUrl : "");
-  const [error, setError] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
 
-  const handleCodeChange = (e) => {
-    setCode(e.target.value);
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!verificationCode || verificationCode.length !== 5) {
+      toast.error("Please enter a valid 5-digit code.");
+      return;
+    }
+    const formData = {
+      email: pendingVerificationEmail,
+      verificationCode,
+    };
+    dispatch(verifyEmailAction(formData));
   };
 
-  const handleVerify = useCallback(() => {
-    setLoading(true);
-    const verificationLink = `${BASE_URL}/auth/verify?code=${code}&email=${email}`;
-    axios
-      .get(verificationLink)
-      .then((res) => {
-        if (res.status === 200) {
-          navigate("/email-verified");
-          setCode("");
-          setError("");
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        setError(
-          err.response.data.message || "Invalid code, please try again."
-        );
-
-        setLoading(false);
-      });
-  }, [code, email, navigate, setLoading, setError]);
-
   useEffect(() => {
-    // Automatically trigger handleVerify if both code and email are present in the URL
-    if (codeFromUrl && emailFromUrl) {
-      handleVerify();
+    // Nếu không có email chờ xác thực (ví dụ: refresh trang), quay lại trang đăng ký
+    if (!pendingVerificationEmail) {
+      navigate("/signup");
     }
-  }, [codeFromUrl, emailFromUrl, handleVerify]);
 
-  if (error === "Email is already verified") {
-    navigate("/signin");
-  }
+    if (error) {
+      toast.error(error);
+      dispatch(clearErrors());
+    }
+
+    // Khi xác thực thành công, thông báo và chuyển đến trang đăng nhập
+    if (verificationSuccess) {
+      toast.success(message || "Email verified successfully!"); // SỬA LỖI: Hiển thị message từ state
+      navigate("/signin");
+      dispatch({ type: VERIFICATION_SUCCESS_RESET }); // Reset trạng thái
+    }
+  }, [
+    error,
+    dispatch,
+    navigate,
+    pendingVerificationEmail,
+    verificationSuccess,
+    message, // SỬA LỖI: Thêm message vào dependency array
+  ]);
 
   return (
-    <div className="fixed inset-0 z-10 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="rounded-md bg-white p-6 shadow-md">
-          <h2 className="mb-4 text-2xl font-bold">Verify your email address</h2>
-
-          {!codeFromUrl && !emailFromUrl && (
-            <p className="mb-4">
-              A verification code was sent to your email address. Please either
-              <span className="font-bold"> follow </span>
-              the link in the email or
-              <span className="font-bold"> enter </span>
-              the code below.
-            </p>
-          )}
-
-          <div className="mb-4">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+        <div className="text-center">
+          <img
+            src={SocialEchoLogo}
+            alt="SocialEcho"
+            className="w-32 h-32 mx-auto"
+          />
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Check your email
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            We've sent a 5-digit verification code to{" "}
+            <span className="font-medium">{pendingVerificationEmail}</span>.
+          </p>
+        </div>
+        <form className="space-y-6" onSubmit={handleSubmit}>
+          <div>
+            <label
+              htmlFor="verificationCode"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Verification Code
+            </label>
             <input
+              id="verificationCode"
+              name="verificationCode"
               type="text"
-              placeholder="Verification code"
-              className="w-full rounded-lg border-2 border-gray-200 p-2"
-              value={code}
-              onChange={handleCodeChange}
+              maxLength="5"
+              required
+              value={verificationCode}
+              onChange={(e) => setVerificationCode(e.target.value)}
+              className="w-full px-3 py-2 mt-1 text-center tracking-[1em] border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
-          {error && <div className="mb-4 text-sm text-red-500">{error}</div>}
-          <button
-            disabled={loading}
-            className="rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
-            onClick={handleVerify}
-          >
-            {loading ? (
-              <LoadingSpinner loadingText={"Verifying..."} />
-            ) : (
-              "Verify"
-            )}
-          </button>
-          <button
-            className="ml-4 rounded-lg bg-gray-300 px-4 py-2 text-gray-800 hover:bg-gray-400"
-            onClick={() => {
-              navigate("/signup");
-            }}
-          >
-            Cancel
-          </button>
-        </div>
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
+            >
+              {loading ? <ButtonLoadingSpinner /> : "Verify"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

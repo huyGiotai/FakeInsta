@@ -12,9 +12,16 @@ const duration = require("dayjs/plugin/duration");
 const dayjs = require("dayjs");
 dayjs.extend(duration);
 
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
+
+
 const LOG_TYPE = {
   SIGN_IN: "sign in",
   LOGOUT: "logout",
+
+  SIGN_UP: "sign up", // THÊM LOG_TYPE CHO SIGN_UP
+  VERIFY_EMAIL: "verify email", // THÊM LOG_TYPE CHO VERIFY_EMAIL
 };
 
 const LEVEL = {
@@ -33,6 +40,52 @@ const MESSAGE = {
   MULTIPLE_ATTEMPT_WITHOUT_VERIFY:
     "Multiple sign in attempts detected without verifying identity.",
   LOGOUT_SUCCESS: "User has logged out successfully",
+  SIGN_UP_SUCCESS: "User registered successfully", // THÊM MESSAGE
+  VERIFICATION_CODE_SENT: "Verification email sent", // THÊM MESSAGE
+  EMAIL_ALREADY_VERIFIED: "Email is already verified", // THÊM MESSAGE
+  INVALID_VERIFICATION_CODE: "Invalid verification code", // THÊM MESSAGE
+  VERIFICATION_CODE_EXPIRED: "Verification code has expired", // THÊM MESSAGE
+  EMAIL_VERIFIED_SUCCESS: "Email verified successfully", // THÊM MESSAGE
+};
+
+// Hàm tạo mã xác thực 5 chữ số/ký tự
+const generateVerificationCode = () => {
+  return crypto.randomBytes(3).toString('hex').toUpperCase().substring(0, 5); // 5-digit alphanumeric
+};
+
+// Hàm gửi email xác thực
+const sendVerificationEmail = async (email, code) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: process.env.EMAIL_PORT,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Verify your SocialEcho account",
+      html: `
+        <p>Hello,</p>
+        <p>Thank you for registering with SocialEcho. Please use the following code to verify your email address:</p>
+        <h3 style="font-size: 24px; font-weight: bold; color: #007bff;">${code}</h3>
+        <p>This code will expire in 10 minutes.</p>
+        <p>If you did not request this, please ignore this email.</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Verification email sent to ${email}`);
+    await saveLogInfo(null, `${MESSAGE.VERIFICATION_CODE_SENT} to ${email}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.INFO);
+  } catch (error) {
+    console.error(`Error sending verification email to ${email}:`, error);
+    await saveLogInfo(null, `Error sending verification email to ${email}: ${error.message}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.ERROR);
+  }
 };
 
 const signin = async (req, res, next) => {
@@ -60,6 +113,12 @@ const signin = async (req, res, next) => {
         message: "Invalid credentials",
       });
     }
+
+    // if (!existingUser.isEmailVerified) {
+    //   return res.status(401).json({
+    //     message: "Your account has not been verified. Please check your email.",
+    //   });
+    // }
 
     const isPasswordCorrect = await bcrypt.compare(
       password,
@@ -206,15 +265,6 @@ const signin = async (req, res, next) => {
   }
 };
 
-/**
- * Retrieves a user's profile information, including their total number of posts,
- * the number of communities they are in, the number of communities they have posted in,
- * and their duration on the platform.
-
- * @param req - Express request object
- * @param res - Express response object
- * @param {Function} next - Express next function
- */
 const getUser = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id).select("-password").lean();
@@ -272,58 +322,62 @@ const getUser = async (req, res, next) => {
 };
 
 /**
- * Adds a new user to the database with the given name, email, password, and avatar.
- *
- * @description If the email domain of the user's email is "mod.socialecho.com", the user will be
- * assigned the role of "moderator" by default, but not necessarily as a moderator of any community.
- * Otherwise, the user will be assigned the role of "general" user.
- *
- * @param {Object} req.files - The files attached to the request object (for avatar).
- * @param {string} req.body.isConsentGiven - Indicates whether the user has given consent to enable context based auth.
- * @param {Function} next - The next middleware function to call if consent is given by the user to enable context based auth.
+ * SỬA LỖI: Hàm này chỉ tạo user, sau đó gọi next() để chuyển cho middleware gửi email.
  */
 const addUser = async (req, res, next) => {
-  let newUser;
-  const hashedPassword = await bcrypt.hash(req.body.password, 10);
-  /**
-   * @type {boolean} isConsentGiven
-   */
-  const isConsentGiven = JSON.parse(req.body.isConsentGiven);
-
-  const defaultAvatar =
-    "https://raw.githubusercontent.com/nz-m/public-files/main/dp.jpg";
-  const fileUrl = req.files?.[0]?.filename
-    ? `${req.protocol}://${req.get("host")}/assets/userAvatars/${req.files[0].filename
-    }`
-    : defaultAvatar;
-
-  const emailDomain = req.body.email.split("@")[1];
-  const role = emailDomain === "mod.socialecho.com" ? "moderator" : "general";
-
-  newUser = new User({
-    name: req.body.name,
-    email: req.body.email,
-    password: hashedPassword,
-    role: role,
-    avatar: fileUrl,
-  });
-
   try {
-    await newUser.save();
-    if (newUser.isNew) {
-      throw new Error("Failed to add user");
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    const defaultAvatar = "https://raw.githubusercontent.com/nz-m/public-files/main/dp.jpg";
+
+    const fileUrl = req.file?.filename
+      ? `${req.protocol}://${req.get("host")}/assets/userAvatars/${req.file.filename}`
+      : defaultAvatar;
+
+    const emailDomain = req.body.email.split("@")[1];
+    const role = emailDomain === "mod.socialecho.com" ? "moderator" : "general";
+
+    // Tạo mã xác thực và thời gian hết hạn
+    const verificationCode = generateVerificationCode();
+    const verificationCodeExpires = dayjs().add(10, 'minute').toDate(); // Mã có hiệu lực 10 phút
+
+    const newUser = new User({
+      name: req.body.name,
+      email: req.body.email,
+      password: hashedPassword,
+      role: role,
+      avatar: fileUrl,
+      isEmailVerified: false, // Mặc định là false khi đăng ký
+      verificationCode: verificationCode, // Lưu mã xác thực
+      verificationCodeExpires: verificationCodeExpires, // Lưu thời gian hết hạn
+    });
+
+    const savedUser = await newUser.save();
+
+    // Gửi email xác thực
+    await sendVerificationEmail(savedUser.email, verificationCode);
+    await saveLogInfo(req, MESSAGE.SIGN_UP_SUCCESS, LOG_TYPE.SIGN_UP, LEVEL.INFO);
+
+
+    // SỬA LỖI: Gửi phản hồi thành công trực tiếp về cho client
+    return res.status(201).json({
+      message: "Sign up successful! Please check your email to verify your account.",
+      user: {
+        email: savedUser.email,
+      },
+    });
+
+  } catch (err) {
+    if (err.code === 11000) {
+      await saveLogInfo(req, `Sign up failed: ${req.body.email} already registered`, LOG_TYPE.SIGN_UP, LEVEL.ERROR);
+      return res.status(409).json({ // 409 Conflict
+        errors: ["This email is already registered."],
+      });
     }
 
-    if (isConsentGiven === false) {
-      res.status(201).json({
-        message: "User added successfully",
-      });
-    } else {
-      next();
-    }
-  } catch (err) {
-    res.status(400).json({
-      message: "Failed to add user",
+    console.error("Error adding user:", err); // Log lỗi chi tiết
+    await saveLogInfo(req, `Error adding user: ${err.message}`, LOG_TYPE.SIGN_UP, LEVEL.ERROR);
+    res.status(500).json({
+      errors: ["Failed to add user due to a server error."],
     });
   }
 };
@@ -400,9 +454,6 @@ const refreshToken = async (req, res) => {
   }
 };
 
-/**
- * @route GET /users/moderator
- */
 const getModProfile = async (req, res) => {
   try {
     const moderator = await User.findById(req.userId);
@@ -428,48 +479,37 @@ const getModProfile = async (req, res) => {
   }
 };
 
-/**
- * @route PUT /users/:id
- */
 const updateInfo = async (req, res) => {
   try {
-    // Security Check: Đảm bảo người dùng chỉ cập nhật hồ sơ của chính họ
     if (req.userId !== req.params.id) {
       return res.status(403).json({
         message: "Forbidden: You can only update your own profile.",
       });
     }
 
-    // 1. Chuẩn bị dữ liệu cần cập nhật
     const updateData = {};
     const { name, location, interests, bio } = req.body;
 
-    // Chỉ thêm các trường vào đối tượng update nếu chúng được cung cấp trong request
-    // Điều này cho phép người dùng xóa nội dung bằng cách gửi một chuỗi rỗng ""
     if (name !== undefined) updateData.name = name;
     if (location !== undefined) updateData.location = location;
     if (interests !== undefined) updateData.interests = interests;
     if (bio !== undefined) updateData.bio = bio;
 
-    // 2. Xử lý ảnh đại diện mới nếu có
     if (req.file) {
       const fileUrl = `/assets/userAvatars/${req.file.filename}`;
       updateData.avatar = fileUrl;
     }
 
-    // 3. Tìm và cập nhật người dùng trong một thao tác duy nhất
-    // { new: true } đảm bảo rằng hàm sẽ trả về đối tượng user sau khi đã được cập nhật
     const updatedUser = await User.findByIdAndUpdate(
       req.userId,
       { $set: updateData },
       { new: true }
-    ).select("-password"); // Loại bỏ mật khẩu khỏi kết quả trả về
+    ).select("-password");
 
     if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // 4. Gửi lại toàn bộ đối tượng người dùng đã được cập nhật cho client
     res.status(200).json(updatedUser);
 
   } catch (err) {
@@ -479,6 +519,54 @@ const updateInfo = async (req, res) => {
   }
 };
 
+// THÊM HÀM verifyEmail MỚI NÀY
+const verifyEmail = async (req, res) => {
+  try {
+    const { email, verificationCode } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      await saveLogInfo(req, `Email verification failed: User not found for ${email}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.ERROR);
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (user.isEmailVerified) {
+      await saveLogInfo(req, `Email verification failed: ${email} is already verified`, LOG_TYPE.VERIFY_EMAIL, LEVEL.WARN);
+      return res.status(400).json({ message: MESSAGE.EMAIL_ALREADY_VERIFIED });
+    }
+
+    if (!user.verificationCode || !user.verificationCodeExpires) {
+      await saveLogInfo(req, `Email verification failed: No code found for ${email}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.ERROR);
+      return res.status(400).json({ message: "No verification code found for this user. Please request a new one." });
+    }
+
+    if (user.verificationCode !== verificationCode) {
+      await saveLogInfo(req, `Email verification failed: Invalid code for ${email}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.WARN);
+      return res.status(400).json({ message: MESSAGE.INVALID_VERIFICATION_CODE });
+    }
+
+    if (dayjs().isAfter(dayjs(user.verificationCodeExpires))) {
+      await saveLogInfo(req, `Email verification failed: Code expired for ${email}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.WARN);
+      return res.status(400).json({ message: MESSAGE.VERIFICATION_CODE_EXPIRED });
+    }
+
+    user.isEmailVerified = true;
+    user.verificationCode = undefined; // Xóa mã code sau khi xác thực
+    user.verificationCodeExpires = undefined; // Xóa thời gian hết hạn
+    await user.save();
+
+    await saveLogInfo(req, `${MESSAGE.EMAIL_VERIFIED_SUCCESS} for ${email}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.INFO);
+    res.status(200).json({ message: MESSAGE.EMAIL_VERIFIED_SUCCESS + "! You can now sign in." });
+
+  } catch (error) {
+    console.error("Error verifying email:", error);
+    await saveLogInfo(req, `Error verifying email for ${req.body.email}: ${error.message}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.ERROR);
+    res.status(500).json({ message: "Internal server error during email verification." });
+  }
+};
+
+
 module.exports = {
   addUser,
   signin,
@@ -487,4 +575,5 @@ module.exports = {
   getModProfile,
   getUser,
   updateInfo,
+  verifyEmail, // THÊM HÀM NÀY VÀO EXPORTS
 };

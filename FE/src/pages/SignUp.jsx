@@ -1,26 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useDispatch, useSelector } from "react-redux";
-import { signUpAction, clearMessage } from "../redux/actions/authActions";
+import { signUpAction, clearErrors, clearMessage } from "../redux/actions/authActions";
 import { Link } from "react-router-dom";
 import ContextAuthModal from "../components/modals/ContextAuthModal";
 import { RxCross1 } from "react-icons/rx";
 import ButtonLoadingSpinner from "../components/loader/ButtonLoadingSpinner";
 import Logo from "../assets/SocialEcho.png";
+import { toast } from "react-toastify";
 
-const SignUpNew = () => {
+const SignUp = () => {
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // Thêm confirm password
   const [avatar, setAvatar] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null); // Thêm preview
   const [avatarError, setAvatarError] = useState(null);
 
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  const signUpError = useSelector((state) => state.auth?.signUpError);
+  const { error, signUpError, pendingVerificationEmail, message } = useSelector(
+    (state) => state.auth
+  );
+
+  const [isConsentGiven, setIsConsentGiven] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
 
   const handleNameChange = (e) => {
     setName(e.target.value);
@@ -28,7 +37,6 @@ const SignUpNew = () => {
 
   const handleEmailChange = (e) => {
     setEmail(e.target.value);
-
     if (e.target.value.includes("mod.socialecho.com")) {
       setIsModerator(true);
     } else {
@@ -40,11 +48,16 @@ const SignUpNew = () => {
     setPassword(e.target.value);
   };
 
+  const handleConfirmPasswordChange = (e) => {
+    setConfirmPassword(e.target.value);
+  };
+
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (!file) {
       setAvatar(null);
       setAvatarError(null);
+      setAvatarPreview(null);
       return;
     }
     if (
@@ -54,28 +67,42 @@ const SignUpNew = () => {
     ) {
       setAvatar(null);
       setAvatarError("Please upload a valid image file (jpeg, jpg, png)");
+      setAvatarPreview(null);
     } else if (file.size > 10 * 1024 * 1024) {
       setAvatar(null);
       setAvatarError("Please upload an image file less than 10MB");
+      setAvatarPreview(null);
     } else {
       setAvatar(file);
       setAvatarError(null);
+      // Thêm preview
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAvatarPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  const [isConsentGiven, setIsConsentGiven] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isModerator, setIsModerator] = useState(false);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Kiểm tra mật khẩu khớp nhau
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
     setLoading(true);
     setLoadingText("Signing up...");
+    
     const formData = new FormData();
     formData.append("name", name);
     formData.append("email", email);
     formData.append("password", password);
-    formData.append("avatar", avatar);
+    if (avatar) {
+      formData.append("avatar", avatar);
+    }
     formData.append("role", "general");
     formData.append("isConsentGiven", isConsentGiven.toString());
 
@@ -85,15 +112,34 @@ const SignUpNew = () => {
       );
     }, 5000);
 
-    await dispatch(signUpAction(formData, navigate, isConsentGiven, email));
+    dispatch(signUpAction(formData));
     setLoading(false);
     setIsConsentGiven(false);
     clearTimeout(timeout);
   };
 
   const handleClearError = () => {
+    dispatch(clearErrors());
     dispatch(clearMessage());
   };
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+      dispatch(clearErrors());
+    }
+    if (signUpError && signUpError.length > 0) {
+      signUpError.forEach(err => toast.error(err));
+      dispatch(clearErrors());
+    }
+    if (message) {
+      toast.success(message);
+      dispatch(clearMessage());
+    }
+    if (pendingVerificationEmail) {
+      navigate("/verify-email");
+    }
+  }, [error, signUpError, message, dispatch, navigate, pendingVerificationEmail]);
 
   return (
     <section className="bg-white">
@@ -102,6 +148,8 @@ const SignUpNew = () => {
           <div className="mx-auto flex justify-center">
             <img className="h-7 w-auto sm:h-8" src={Logo} alt="" />
           </div>
+
+          {/* Hiển thị lỗi */}
           {signUpError &&
             Array.isArray(signUpError) &&
             signUpError.map((err, i) => (
@@ -134,6 +182,8 @@ const SignUpNew = () => {
               Sign Up
             </Link>
           </div>
+
+          {/* Username input */}
           <div className="relative mt-8 flex items-center">
             <span className="absolute">
               <svg
@@ -163,6 +213,8 @@ const SignUpNew = () => {
               autoComplete="off"
             />
           </div>
+
+          {/* Avatar upload */}
           <label
             htmlFor="avatar"
             className="mx-auto mt-6 flex cursor-pointer items-center rounded-lg border-2 border-dashed bg-white px-3 py-3 text-center"
@@ -192,17 +244,26 @@ const SignUpNew = () => {
               autoComplete="off"
             />
           </label>
-          {avatar && (
+
+          {/* Avatar preview */}
+          {avatarPreview && (
             <div className="mt-2 flex items-center justify-center">
-              <span className="font-medium text-blue-500">{avatar.name}</span>
+              <img
+                src={avatarPreview}
+                alt="Avatar preview"
+                className="h-20 w-20 rounded-full object-cover"
+              />
             </div>
           )}
+
+          {/* Avatar error */}
           {avatarError && (
             <div className="mt-2 flex items-center justify-center">
               <span className="text-red-500">{avatarError}</span>
             </div>
           )}
 
+          {/* Email input */}
           <div className="relative mt-6 flex items-center">
             <span className="absolute">
               <svg
@@ -232,6 +293,8 @@ const SignUpNew = () => {
               autoComplete="off"
             />
           </div>
+
+          {/* Password input */}
           <div className="relative mt-4 flex items-center">
             <span className="absolute">
               <svg
@@ -261,6 +324,39 @@ const SignUpNew = () => {
               autoComplete="off"
             />
           </div>
+
+          {/* Confirm Password input */}
+          <div className="relative mt-4 flex items-center">
+            <span className="absolute">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="mx-3 h-6 w-6 text-gray-300"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </span>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={handleConfirmPasswordChange}
+              className="block w-full rounded-lg border bg-white px-10 py-3 text-gray-700 focus:border-blue-400 focus:outline-none focus:ring focus:ring-blue-300 focus:ring-opacity-40"
+              placeholder="Confirm Password"
+              required
+              autoComplete="off"
+            />
+          </div>
+
+          {/* Submit button */}
           <div className="mt-6">
             <button
               disabled={loading}
@@ -275,8 +371,6 @@ const SignUpNew = () => {
                 <span>Sign Up</span>
               )}
             </button>
-
-
 
             <div>
               <ContextAuthModal
@@ -293,4 +387,4 @@ const SignUpNew = () => {
   );
 };
 
-export default SignUpNew;
+export default SignUp;

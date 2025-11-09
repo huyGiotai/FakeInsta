@@ -47,4 +47,22 @@ const verifyLoginHTML = (
   </div>
 `;
 
-module.exports = { verifyEmailHTML, verifyLoginHTML };
+// --- THÊM HÀM MỚI NÀY VÀO ---
+const forgotPasswordHTML = (name, resetLink) => `
+<div style="max-width: 600px; margin: auto; background-color: #f4f4f4; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <div style="background-color: #ffffff; padding: 20px; border-radius: 10px;">
+    <img src="https://raw.githubusercontent.com/nz-m/SocialEcho/main/client/src/assets/SocialEcho.png" alt="SocialEcho Logo" style="display: block; margin: auto auto 20px;max-width: 50%;">
+    <p style="font-size: 18px; margin-bottom: 20px; text-align: center; color: #4b5563; font-weight: bold;">Password Reset Request</p>
+    <p style="font-size: 16px; margin-bottom: 20px; color: #4b5563;">Hello ${name},</p>
+    <p style="font-size: 16px; margin-bottom: 20px; color: #4b5563;">We received a request to reset the password for your account. Please click the button below to set a new password:</p>
+    <div style="text-align: center; margin-bottom: 20px;">
+      <a href="${resetLink}" style="background-color: #3b82f6; color: #ffffff; padding: 12px 25px; border-radius: 5px; text-decoration: none; display: inline-block; font-size: 16px; font-weight: bold;">Reset Password</a>
+    </div>
+    <p style="font-size: 14px; margin-bottom: 20px; text-align: center; color: #6b7280;">This link will expire in 1 hour.</p>
+    <p style="font-size: 14px; margin-bottom: 20px; text-align: center; color: #4b5563;">If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
+  </div>
+</div>`;
+
+
+
+module.exports = { verifyEmailHTML, verifyLoginHTML, forgotPasswordHTML };

@@ -1,4 +1,8 @@
-import { API, handleApiError } from "./utils";
+import axios from "axios"; // SỬA LỖI: Import axios
+import { API, handleApiError } from "./utils"; // Đảm bảo API và handleApiError được import từ utils
+
+// Đảm bảo BASE_URL được lấy từ biến môi trường
+const BASE_URL = process.env.REACT_APP_SERVER_URL; // SỬA LỖI: Sử dụng REACT_APP_SERVER_URL cho nhất quán
 
 export const signIn = async (formData) => {
   try {
@@ -22,8 +26,9 @@ export const signUp = async (formData) => {
     });
     return { error: null, data: res.data };
   } catch (error) {
+    // SỬA LỖI: Đảm bảo trả về message từ backend nếu có
     return {
-      error: error.response.data.errors,
+      error: error.response?.data?.message || error.response?.data?.errors || "Sign up failed",
       data: null,
     };
   }
@@ -108,6 +113,36 @@ export const blockContextAuthData = async (contextId) => {
 export const unblockContextAuthData = async (contextId) => {
   try {
     const res = await API.patch(`/auth/context-data/unblock/${contextId}`);
+    return { error: null, data: res.data };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+export const forgotPasswordAPI = async (email) => { // Đổi tên để nhất quán với các API khác
+  try {
+    const res = await API.post("/users/forgot-password", { email });
+    return { error: null, data: res.data };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+export const resetPasswordAPI = async (token, userId, password) => { // Đổi tên để nhất quán với các API khác
+  try {
+    const res = await API.post(`/users/reset-password/${token}/${userId}`, {
+      password,
+    });
+    return { error: null, data: res.data };
+  } catch (error) {
+    return handleApiError(error);
+  }
+};
+
+// SỬA LỖI: Định nghĩa hàm verifyEmailAPI đúng cách
+export const verifyEmailAPI = async (formData) => {
+  try {
+    const res = await API.post("/users/verify-email", formData);
     return { error: null, data: res.data };
   } catch (error) {
     return handleApiError(error);

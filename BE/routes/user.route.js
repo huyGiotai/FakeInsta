@@ -11,7 +11,14 @@ const {
   getModProfile,
   getUser,
   updateInfo,
+  verifyEmail
 } = require("../controllers/user.controller");
+
+const {
+  forgotPassword,
+  resetPassword,
+  verifyUserEmail,
+} = require("../controllers/auth.controller");
 
 const {
   getPublicUsers,
@@ -26,7 +33,8 @@ const {
   addUserValidatorHandler,
 } = require("../middlewares/users/usersValidator");
 
-const { sendVerificationEmail } = require("../middlewares/users/verifyEmail");
+// SỬA LỖI: Import middleware mới
+const { sendSignupVerification } = require("../middlewares/users/sendSignupVerification");
 const {
   sendLoginVerificationEmail,
 } = require("../middlewares/users/verifyLogin");
@@ -49,12 +57,13 @@ router.get("/:id", requireAuth, getUser);
 router.post(
   "/signup",
   signUpSignInLimiter,
-  avatarUpload.single("avatar"), // <-- SỬA LỖI 1
+  avatarUpload.single("avatar"),
   addUserValidator,
   addUserValidatorHandler,
   addUser,
-  sendVerificationEmail
+  sendSignupVerification // SỬA LỖI: Sử dụng middleware mới
 );
+
 router.post("/refresh-token", refreshToken);
 router.post(
   "/signin",
@@ -64,14 +73,20 @@ router.post(
   signin,
   sendLoginVerificationEmail
 );
+router.post("/verify-email", verifyEmail); // THÊM TUYẾN ĐƯỜNG NÀY
 router.post("/logout", logout);
+
+router.post("/verify-email", verifyUserEmail);
+
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password/:token/:userId", resetPassword);
 
 router.put(
   "/:id",
   requireAuth,
   decodeToken,
-  avatarUpload.single("avatar"), // <-- SỬA LỖI 2: Đưa middleware xử lý file lên trước
-  updateInfo // <-- Controller chạy sau
+  avatarUpload.single("avatar"),
+  updateInfo
 );
 
 router.use(followLimiter);

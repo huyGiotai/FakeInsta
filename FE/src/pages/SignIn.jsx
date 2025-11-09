@@ -153,13 +153,24 @@ const SignIn = () => {
               autoComplete="off"
             />
           </div>
+
+          {/* --- THÊM KHỐI CODE NÀY VÀO --- */}
+          <div className="mt-4 text-right">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-gray-600 hover:text-blue-500 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          {/* --- KẾT THÚC KHỐI CODE MỚI --- */}
+
           <div className="mt-6">
             <button
               disabled={loading}
               onClick={handleSubmit}
-              className={`w-full transform rounded-lg bg-blue-500 px-6 py-3 text-sm font-medium tracking-wide text-white transition-colors duration-300 hover:bg-blue-700 focus:outline-none focus:ring focus:ring-blue-300 focus:ring-opacity-50 ${
-                loading ? "cursor-not-allowed opacity-50" : ""
-              }`}
+              className={`w-full transform rounded-lg bg-blue-500 px-6 py-3 text-sm font-medium tracking-wide text-white transition-colors duration-300 hover:bg-blue-700 focus:outline-none focus:ring focus:ring-blue-300 focus:ring-opacity-50 ${loading ? "cursor-not-allowed opacity-50" : ""
+                }`}
             >
               {loading ? (
                 <ButtonLoadingSpinner loadingText={loadingText} />
@@ -170,7 +181,7 @@ const SignIn = () => {
           </div>
         </form>
         <span className="flex items-center justify-center py-4 text-sm text-gray-600 ">
-          
+
           <Link
             to="/admin"
             className="ml-8 flex items-center hover:text-blue-500"
