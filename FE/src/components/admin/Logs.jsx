@@ -1,9 +1,26 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react"; // THÊM 'useMemo'
 import { useSelector, useDispatch } from "react-redux";
 import { getLogsAction, deleteLogsAction } from "../../redux/actions/adminActions";
 import dayjs from "dayjs";
 import { FaSearch, FaSortUp, FaSortDown, FaSync, FaTrashAlt, FaInfoCircle } from "react-icons/fa";
 import debounce from 'lodash.debounce';
+
+// THÊM MỚI: Helper object để "dịch" các key thành nhãn đẹp hơn
+const contextKeyLabels = {
+  ipAddress: "IP Address",
+  country: "Country",
+  city: "City",
+  deviceType: "Device Type",
+  browser: "Browser",
+  platform: "Platform",
+  os: "Operating System",
+  device: "Device Name",
+};
+
+// THÊM MỚI: Helper function để định dạng key
+const formatContextKey = (key) => {
+  return contextKeyLabels[key] || key; // Trả về nhãn đẹp nếu có, nếu không thì giữ nguyên
+};
 
 // Component con cho việc phân trang
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
@@ -33,30 +50,32 @@ const CurrentTime = () => {
   return <div className="text-sm text-gray-500 font-mono">{time.format("dddd, MMMM D, YYYY h:mm:ss A")}</div>;
 };
 
-
 const Logs = () => {
   const dispatch = useDispatch();
-  // Lấy state đã được nâng cấp từ Redux
-  const { logs, currentPage, totalPages, totalLogs, loadingLogs, adminPanelError } = useSelector((state) => state.admin);
+  // SỬA ESLINT: Xóa 'loadingLogs' không được sử dụng
+  const { logs, currentPage, totalPages, totalLogs, adminPanelError } = useSelector((state) => state.admin);
   
-  // State cục bộ để quản lý các bộ lọc và sắp xếp
   const [filters, setFilters] = useState({ level: '', type: '', search: '' });
   const [sort, setSort] = useState({ sortBy: 'timestamp', sortOrder: 'desc' });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Hàm gọi API, được bọc trong useCallback để tối ưu hóa
   const fetchLogs = useCallback((page) => {
     setIsLoading(true);
     const queryParams = { page, ...filters, ...sort };
     dispatch(getLogsAction(queryParams)).finally(() => setIsLoading(false));
   }, [dispatch, filters, sort]);
-
-  // Sử dụng debounce để trì hoãn việc gọi API khi người dùng nhập liệu
-  const debouncedFetch = useCallback(debounce((page) => fetchLogs(page), 500), [fetchLogs]);
-
-  // useEffect để gọi API khi bộ lọc hoặc sắp xếp thay đổi
+  
+  // SỬA ESLINT: Sử dụng useMemo cho debounce để ổn định và tránh cảnh báo
+  const debouncedFetch = useMemo(
+    () => debounce((page) => fetchLogs(page), 500),
+    [fetchLogs]
+  );
+  
   useEffect(() => {
     debouncedFetch(1); // Luôn fetch trang 1 khi filter/sort thay đổi
+    return () => {
+      debouncedFetch.cancel(); // Hủy debounce khi component unmount
+    };
   }, [filters, sort, debouncedFetch]);
 
   const handleFilterChange = (e) => {
@@ -172,8 +191,9 @@ const Logs = () => {
                           <div className="relative group flex justify-center">
                             <FaInfoCircle className="text-gray-400 cursor-pointer" />
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-gray-800 text-white text-xs rounded-lg p-3 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
-                              {Object.entries(log.context).map(([key, value]) => value && (
-                                <div key={key} className="truncate"><strong>{key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}:</strong> {String(value)}</div>
+                              {/* NÂNG CẤP: Sử dụng hàm formatContextKey và lọc giá trị 'Unknown' */}
+                              {Object.entries(log.context).map(([key, value]) => value && value !== "Unknown" && (
+                                <div key={key} className="truncate"><strong>{formatContextKey(key)}:</strong> {String(value)}</div>
                               ))}
                             </div>
                           </div>
