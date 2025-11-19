@@ -187,7 +187,7 @@ const PostView = ({ post, userData }) => {
         showModal={showModal}
         postId={post._id}
         onClose={() => toggleModal(false)}
-        prevPath={location.state.from || "/"}
+        prevPath={location.state?.from || "/"} // SỬA LỖI: Thêm optional chaining ?.
       />
 
       <ReportPostModal
