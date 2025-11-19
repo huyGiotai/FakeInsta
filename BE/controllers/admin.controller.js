@@ -14,64 +14,57 @@ const User = require("../models/user.model");
  */
 const retrieveLogInfo = async (req, res) => {
   try {
-    // Only sign in logs contain encrypted context data & email
-    const [signInLogs, generalLogs] = await Promise.all([
-      Log.find({ type: "sign in" }).sort({ createdAt: -1 }).limit(50),
+    const {
+      page = 1,
+      limit = 20,
+      level,
+      type,
+      sortBy = 'timestamp',
+      sortOrder = 'desc',
+      search
+    } = req.query;
 
-      Log.find({ type: { $ne: "sign in" } })
-        .sort({ createdAt: -1 })
-        .limit(50),
-    ]);
+    const filterQuery = {};
 
-    const formattedSignInLogs = [];
-    for (let i = 0; i < signInLogs.length; i++) {
-      const { _id, email, context, message, type, level, timestamp } =
-        signInLogs[i];
-      const contextData = context.split(",");
-      const formattedContext = {};
-
-      for (let j = 0; j < contextData.length; j++) {
-        const [key, value] = contextData[j].split(":");
-        if (key === "IP") {
-          formattedContext["IP Address"] = contextData[j]
-            .split(":")
-            .slice(1)
-            .join(":");
-        } else {
-          formattedContext[key.trim()] = value.trim();
-        }
-      }
-
-      formattedSignInLogs.push({
-        _id,
-        email,
-        contextData: formattedContext,
-        message,
-        type,
-        level,
-        timestamp,
-      });
+    if (level) filterQuery.level = level;
+    if (type) filterQuery.type = type;
+    if (search) {
+      const searchRegex = { $regex: search, $options: 'i' };
+      filterQuery.$or = [
+        { message: searchRegex },
+        { email: searchRegex },
+        { endpoint: searchRegex },
+        { 'context.ipAddress': searchRegex },
+      ];
     }
-    const formattedGeneralLogs = generalLogs.map((log) => ({
-      _id: log._id,
-      email: log.email,
-      message: log.message,
-      type: log.type,
-      level: log.level,
-      timestamp: log.timestamp,
+
+    const sortOptions = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+
+    const totalLogs = await Log.countDocuments(filterQuery);
+    const totalPages = Math.ceil(totalLogs / limit);
+
+    const logsFromDb = await Log.find(filterQuery)
+      .populate("user", "name email avatar") // Populate thông tin từ model User hoặc Admin
+      .sort(sortOptions)
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const logs = logsFromDb.map(log => ({
+      ...log.toObject(),
+      formattedTimestamp: dayjs(log.timestamp).format('MMMM DD, YYYY h:mm:ss A'),
+      relativeTimestamp: dayjs(log.timestamp).fromNow()
     }));
 
-    const formattedLogs = [...formattedSignInLogs, ...formattedGeneralLogs]
-      .map((log) => ({
-        ...log,
-        formattedTimestamp: formatCreatedAt(log.timestamp),
-        relativeTimestamp: dayjs(log.timestamp).fromNow(),
-      }))
-      .sort((a, b) => b.timestamp - a.timestamp);
+    res.status(200).json({
+      logs,
+      currentPage: parseInt(page),
+      totalPages,
+      totalLogs,
+    });
 
-    res.status(200).json(formattedLogs);
   } catch (error) {
-    res.status(500).json({ message: "Internal server error" });
+    console.error("Error retrieving logs:", error);
+    res.status(500).json({ message: "Failed to retrieve logs due to an internal server error." });
   }
 };
 
@@ -81,9 +74,10 @@ const retrieveLogInfo = async (req, res) => {
 const deleteLogInfo = async (req, res) => {
   try {
     await Log.deleteMany({});
-    res.status(200).json({ message: "All logs deleted!" });
+    res.status(200).json({ message: "All logs cleared successfully." });
   } catch (error) {
-    res.status(500).json({ message: "Something went wrong!" });
+    console.error("Error clearing logs:", error);
+    res.status(500).json({ message: "Failed to clear logs." });
   }
 };
 

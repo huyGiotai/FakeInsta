@@ -26,9 +26,10 @@ export const updateServicePreferences = async (preferences) => {
   }
 };
 
-export const getLogs = async () => {
+export const getLogs = async (queryParams) => {
   try {
-    const res = await ADMIN_API.get("/logs");
+    // Thêm { params: queryParams } để gửi các bộ lọc đến backend
+    const res = await ADMIN_API.get("/logs", { params: queryParams });
     return { error: null, data: res.data };
   } catch (error) {
     return handleApiError(error);
@@ -37,7 +38,9 @@ export const getLogs = async () => {
 
 export const deleteLogs = async () => {
   try {
-    await ADMIN_API.delete("/logs");
+    // NÂNG CẤP: Đảm bảo trả về dữ liệu từ API
+    const res = await ADMIN_API.delete("/logs");
+    return { error: null, data: res.data };
   } catch (error) {
     return handleApiError(error);
   }

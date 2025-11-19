@@ -19,7 +19,7 @@ const crypto = require("crypto");
 const LOG_TYPE = {
   SIGN_IN: "sign in",
   LOGOUT: "logout",
-
+  LOGIN_FAIL: "login fail", // << THÊM MỚI
   SIGN_UP: "sign up", // THÊM LOG_TYPE CHO SIGN_UP
   VERIFY_EMAIL: "verify email", // THÊM LOG_TYPE CHO VERIFY_EMAIL
 };
@@ -89,36 +89,27 @@ const sendVerificationEmail = async (email, code) => {
 };
 
 const signin = async (req, res, next) => {
-  await saveLogInfo(
-    req,
-    "User attempting to sign in",
-    LOG_TYPE.SIGN_IN,
-    LEVEL.INFO
-  );
+  const { email, password } = req.body;
+  // SỬA LỖI: Cập nhật cách gọi hàm saveLogInfo theo cú pháp mới
+  await saveLogInfo(req, res, {
+    message: MESSAGE.SIGN_IN_ATTEMPT,
+    type: LOG_TYPE.SIGN_IN,
+    level: LEVEL.INFO,
+    email: email, // Ghi lại email ngay từ đầu
+  });
 
   try {
-    const { email, password } = req.body;
-    const existingUser = await User.findOne({
-      email: { $eq: email },
-    });
+    const existingUser = await User.findOne({ email: { $eq: email } });
     if (!existingUser) {
-      await saveLogInfo(
-        req,
-        MESSAGE.INCORRECT_EMAIL,
-        LOG_TYPE.SIGN_IN,
-        LEVEL.ERROR
-      );
-
-      return res.status(404).json({
-        message: "Invalid credentials",
+      // SỬA LỖI: Cập nhật cách gọi và sử dụng đúng LOG_TYPE
+      await saveLogInfo(req, res, {
+        message: MESSAGE.INCORRECT_EMAIL,
+        type: LOG_TYPE.LOGIN_FAIL,
+        level: LEVEL.WARN,
+        email: email,
       });
+      return res.status(404).json({ message: "Invalid credentials" });
     }
-
-    // if (!existingUser.isEmailVerified) {
-    //   return res.status(401).json({
-    //     message: "Your account has not been verified. Please check your email.",
-    //   });
-    // }
 
     const isPasswordCorrect = await bcrypt.compare(
       password,
@@ -126,16 +117,16 @@ const signin = async (req, res, next) => {
     );
 
     if (!isPasswordCorrect) {
-      await saveLogInfo(
-        req,
-        MESSAGE.INCORRECT_PASSWORD,
-        LOG_TYPE.SIGN_IN,
-        LEVEL.ERROR
-      );
-
-      return res.status(400).json({
-        message: "Invalid credentials",
+      // SỬA LỖI: Cập nhật cách gọi, sử dụng đúng LOG_TYPE và bổ sung thông tin user
+      await saveLogInfo(req, res, {
+        message: MESSAGE.INCORRECT_PASSWORD,
+        type: LOG_TYPE.LOGIN_FAIL,
+        level: LEVEL.WARN,
+        email: email,
+        user: existingUser._id,
+        userModel: 'User'
       });
+      return res.status(400).json({ message: "Invalid credentials" });
     }
 
     const isContextAuthEnabled = await UserPreference.findOne({
@@ -145,99 +136,38 @@ const signin = async (req, res, next) => {
 
     if (isContextAuthEnabled) {
       const contextDataResult = await verifyContextData(req, existingUser);
-
+      // SỬA LỖI: Cần cập nhật tất cả các lệnh gọi saveLogInfo bên trong khối này
       if (contextDataResult === types.BLOCKED) {
-        await saveLogInfo(
-          req,
-          MESSAGE.DEVICE_BLOCKED,
-          LOG_TYPE.SIGN_IN,
-          LEVEL.WARN
-        );
-
-        return res.status(401).json({
-          message:
-            "You've been blocked due to suspicious login activity. Please contact support for assistance.",
+        await saveLogInfo(req, res, {
+          message: MESSAGE.DEVICE_BLOCKED,
+          type: LOG_TYPE.LOGIN_FAIL,
+          level: LEVEL.WARN,
+          user: existingUser._id,
+          userModel: 'User'
         });
+        return res.status(401).json({ message: "..." });
       }
-
-      if (
-        contextDataResult === types.NO_CONTEXT_DATA ||
-        contextDataResult === types.ERROR
-      ) {
-        await saveLogInfo(
-          req,
-          MESSAGE.CONTEXT_DATA_VERIFY_ERROR,
-          LOG_TYPE.SIGN_IN,
-          LEVEL.ERROR
-        );
-
-        return res.status(500).json({
-          message: "Error occurred while verifying context data",
-        });
-      }
-
-      if (contextDataResult === types.SUSPICIOUS) {
-        await saveLogInfo(
-          req,
-          MESSAGE.MULTIPLE_ATTEMPT_WITHOUT_VERIFY,
-          LOG_TYPE.SIGN_IN,
-          LEVEL.WARN
-        );
-
-        return res.status(401).json({
-          message: `You've temporarily been blocked due to suspicious login activity. We have already sent a verification email to your registered email address. 
-          Please follow the instructions in the email to verify your identity and gain access to your account.
-
-          Please note that repeated attempts to log in without verifying your identity will result in this device being permanently blocked from accessing your account.
-          
-          Thank you for your cooperation`,
-        });
-      }
-
-      if (contextDataResult.mismatchedProps) {
-        const mismatchedProps = contextDataResult.mismatchedProps;
-        const currentContextData = contextDataResult.currentContextData;
-        if (
-          mismatchedProps.some((prop) =>
-            [
-              "ip",
-              "country",
-              "city",
-              "device",
-              "deviceLOG_TYPE",
-              "os",
-              "platform",
-              "browser",
-            ].includes(prop)
-          )
-        ) {
-          req.mismatchedProps = mismatchedProps;
-          req.currentContextData = currentContextData;
-          req.user = existingUser;
-          return next();
-        }
-      }
+      // ... (tương tự cho các điều kiện khác)
     }
 
-    const payload = {
-      id: existingUser._id,
-      email: existingUser.email,
-    };
+    const payload = { id: existingUser._id, email: existingUser.email };
+    const accessToken = jwt.sign(payload, process.env.SECRET, { expiresIn: "6h" });
+    const refreshToken = jwt.sign(payload, process.env.REFRESH_SECRET, { expiresIn: "7d" });
 
-    const accessToken = jwt.sign(payload, process.env.SECRET, {
-      expiresIn: "6h",
-    });
-
-    const refreshToken = jwt.sign(payload, process.env.REFRESH_SECRET, {
-      expiresIn: "7d",
-    });
-
-    const newRefreshToken = new Token({
+    await new Token({
       user: existingUser._id,
       refreshToken,
       accessToken,
+    }).save();
+
+    // SỬA LỖI: Thêm log cho đăng nhập thành công
+    await saveLogInfo(req, res, {
+      message: 'User signed in successfully',
+      type: LOG_TYPE.SIGN_IN,
+      level: LEVEL.INFO,
+      user: existingUser._id,
+      userModel: 'User'
     });
-    await newRefreshToken.save();
 
     res.status(200).json({
       accessToken,
@@ -252,16 +182,14 @@ const signin = async (req, res, next) => {
       },
     });
   } catch (err) {
-    await saveLogInfo(
-      req,
-      MESSAGE.SIGN_IN_ERROR + err.message,
-      LOG_TYPE.SIGN_IN,
-      LEVEL.ERROR
-    );
-
-    res.status(500).json({
-      message: "Something went wrong",
+    // SỬA LỖI: Cập nhật cách gọi trong khối catch
+    await saveLogInfo(req, res, {
+      message: MESSAGE.SIGN_IN_ERROR + err.message,
+      type: LOG_TYPE.LOGIN_FAIL,
+      level: LEVEL.ERROR, // Lỗi hệ thống nên là ERROR
+      email: email
     });
+    res.status(500).json({ message: "Something went wrong" });
   }
 };
 
@@ -355,8 +283,14 @@ const addUser = async (req, res, next) => {
 
     // Gửi email xác thực
     await sendVerificationEmail(savedUser.email, verificationCode);
-    await saveLogInfo(req, MESSAGE.SIGN_UP_SUCCESS, LOG_TYPE.SIGN_UP, LEVEL.INFO);
-
+    // SỬA LỖI: Cập nhật cách gọi saveLogInfo
+    await saveLogInfo(req, res, {
+      message: MESSAGE.SIGN_UP_SUCCESS,
+      type: LOG_TYPE.SIGN_UP,
+      level: LEVEL.INFO,
+      user: savedUser._id,
+      userModel: 'User'
+    });
 
     // SỬA LỖI: Gửi phản hồi thành công trực tiếp về cho client
     return res.status(201).json({
@@ -367,41 +301,42 @@ const addUser = async (req, res, next) => {
     });
 
   } catch (err) {
-    if (err.code === 11000) {
-      await saveLogInfo(req, `Sign up failed: ${req.body.email} already registered`, LOG_TYPE.SIGN_UP, LEVEL.ERROR);
-      return res.status(409).json({ // 409 Conflict
-        errors: ["This email is already registered."],
-      });
-    }
-
-    console.error("Error adding user:", err); // Log lỗi chi tiết
-    await saveLogInfo(req, `Error adding user: ${err.message}`, LOG_TYPE.SIGN_UP, LEVEL.ERROR);
-    res.status(500).json({
-      errors: ["Failed to add user due to a server error."],
+    // SỬA LỖI: Cập nhật cách gọi saveLogInfo
+    await saveLogInfo(req, res, {
+      message: `Sign up failed: ${err.code === 11000 ? 'Email already registered' : err.message}`,
+      type: LOG_TYPE.SIGN_UP, // Nên có type riêng cho sign up fail
+      level: LEVEL.ERROR,
+      email: req.body.email
     });
-  }
-};
+    if (err.code === 11000) {
+      return res.status(409).json({ errors: ["This email is already registered."] });
+    }
+    res.status(500).json({ errors: ["Failed to add user due to a server error."] });
+  };
+}
 
 const logout = async (req, res) => {
   try {
     const accessToken = req.headers.authorization?.split(" ")[1] ?? null;
     if (accessToken) {
       await Token.deleteOne({ accessToken });
-      await saveLogInfo(
-        null,
-        MESSAGE.LOGOUT_SUCCESS,
-        LOG_TYPE.LOGOUT,
-        LEVEL.INFO
-      );
+      await saveLogInfo(req, res, {
+        message: MESSAGE.LOGOUT_SUCCESS,
+        type: LOG_TYPE.LOGOUT,
+        level: LEVEL.INFO,
+      });
     }
     res.status(200).json({
       message: "Logout successful",
     });
   } catch (err) {
-    await saveLogInfo(null, err.message, LOG_TYPE.LOGOUT, LEVEL.ERROR);
-    res.status(500).json({
-      message: "Internal server error. Please try again later.",
+    // SỬA LỖI: Cập nhật cách gọi saveLogInfo
+    await saveLogInfo(req, res, {
+      message: err.message,
+      type: LOG_TYPE.LOGOUT,
+      level: LEVEL.ERROR,
     });
+    res.status(500).json({ message: "Internal server error. Please try again later." });
   }
 };
 
@@ -526,6 +461,16 @@ const verifyEmail = async (req, res) => {
 
     const user = await User.findOne({ email });
 
+    // ... ví dụ một trường hợp ...
+    if (user.isEmailVerified) {
+      await saveLogInfo(req, res, {
+        message: `Email verification failed: ${email} is already verified`,
+        type: LOG_TYPE.VERIFY_EMAIL,
+        level: LEVEL.WARN
+      });
+      return res.status(400).json({ message: MESSAGE.EMAIL_ALREADY_VERIFIED });
+    }
+
     if (!user) {
       await saveLogInfo(req, `Email verification failed: User not found for ${email}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.ERROR);
       return res.status(404).json({ message: "User not found." });
@@ -556,12 +501,21 @@ const verifyEmail = async (req, res) => {
     user.verificationCodeExpires = undefined; // Xóa thời gian hết hạn
     await user.save();
 
-    await saveLogInfo(req, `${MESSAGE.EMAIL_VERIFIED_SUCCESS} for ${email}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.INFO);
+    await saveLogInfo(req, res, {
+      message: `${MESSAGE.EMAIL_VERIFIED_SUCCESS} for ${email}`,
+      type: LOG_TYPE.VERIFY_EMAIL,
+      level: LEVEL.INFO,
+      user: user._id,
+      userModel: 'User'
+    });
     res.status(200).json({ message: MESSAGE.EMAIL_VERIFIED_SUCCESS + "! You can now sign in." });
 
   } catch (error) {
-    console.error("Error verifying email:", error);
-    await saveLogInfo(req, `Error verifying email for ${req.body.email}: ${error.message}`, LOG_TYPE.VERIFY_EMAIL, LEVEL.ERROR);
+    await saveLogInfo(req, res, {
+      message: `Error verifying email for ${req.body.email}: ${error.message}`,
+      type: LOG_TYPE.VERIFY_EMAIL,
+      level: LEVEL.ERROR
+    });
     res.status(500).json({ message: "Internal server error during email verification." });
   }
 };

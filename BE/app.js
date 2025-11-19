@@ -37,6 +37,16 @@ db.connect().catch((err) =>
 
 app.use(cors());
 app.use(morgan("dev"));
+
+// THÊM ĐOẠN MÃ NÀY ĐỂ SỬA LỖI REFRESH KHÔNG CẬP NHẬT
+// Middleware để vô hiệu hóa cache cho TẤT CẢ các phản hồi API
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // HTTP 1.1.
+  res.setHeader('Pragma', 'no-cache'); // HTTP 1.0.
+  res.setHeader('Expires', '0'); // Proxies.
+  next();
+});
+
 app.use("/assets/userFiles", express.static(__dirname + "/assets/userFiles"));
 app.use(
   "/assets/userAvatars",

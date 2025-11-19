@@ -28,15 +28,16 @@ export const logoutAction = () => async (dispatch) => {
   } catch (error) {}
 };
 
-export const getLogsAction = () => async (dispatch) => {
+export const getLogsAction = (queryParams) => async (dispatch) => {
   try {
-    const { error, data } = await api.getLogs();
+    // Không cần dispatch REQUEST ở đây vì sẽ xử lý loading trong component
+    const { error, data } = await api.getLogs(queryParams);
     if (error) {
       throw new Error(error);
     }
     dispatch({
       type: types.GET_LOGS_SUCCESS,
-      payload: data,
+      payload: data, // payload giờ là object { logs: [], totalPages, ... }
     });
   } catch (error) {
     dispatch({
@@ -55,6 +56,8 @@ export const deleteLogsAction = () => async (dispatch) => {
     dispatch({
       type: types.DELETE_LOGS_SUCCESS,
     });
+    // Tải lại logs sau khi xóa thành công
+    dispatch(getLogsAction({}));
   } catch (error) {
     dispatch({
       type: types.DELETE_LOGS_FAIL,

@@ -2,6 +2,10 @@ import * as types from "../constants/adminConstants";
 
 const initialState = {
   logs: [],
+  currentPage: 1,
+  totalPages: 1,
+  totalLogs: 0,
+  loadingLogs: true,
   servicePreferences: null,
   communities: null,
   community: null,
@@ -39,29 +43,30 @@ const adminReducer = (state = initialState, action) => {
       };
     case types.GET_LOGS_SUCCESS:
       return {
-        ...state,
-        logs: payload ? payload : [],
+         ...state,
+        logs: payload.logs || [], // Lấy mảng logs từ payload
+        currentPage: payload.currentPage,
+        totalPages: payload.totalPages,
+        totalLogs: payload.totalLogs,
         adminPanelError: null,
       };
 
     case types.GET_LOGS_FAIL:
       return {
         ...state,
-        logs: [],
-        adminPanelError: payload ? payload : [],
+        logs: [], // Trả về mảng rỗng khi có lỗi
+        adminPanelError: payload,
       };
 
     case types.DELETE_LOGS_SUCCESS:
       return {
         ...state,
-        logs: [],
         adminPanelError: null,
       };
 
     case types.DELETE_LOGS_FAIL:
       return {
         ...state,
-        logs: null,
         adminPanelError: payload ? payload : [],
       };
 
