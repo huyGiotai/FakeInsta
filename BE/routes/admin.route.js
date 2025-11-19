@@ -17,10 +17,10 @@ const requireAdminAuth = require("../middlewares/auth/adminAuth");
 const {
   configLimiter,
   logLimiter,
-  signUpSignInLimiter,
+  loginLimiter,
 } = require("../middlewares/limiter/limiter");
 
-router.post("/signin", signUpSignInLimiter, signin);
+router.post("/signin", loginLimiter, signin);
 
 router.use(requireAdminAuth);
 

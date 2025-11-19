@@ -41,7 +41,8 @@ const {
 
 const avatarUpload = require("../middlewares/users/avatarUpload");
 const {
-  signUpSignInLimiter,
+  // THAY ĐỔI 1: Thay thế signUpSignInLimiter bằng loginLimiter
+  loginLimiter, // Import limiter đã được nâng cấp
   followLimiter,
 } = require("../middlewares/limiter/limiter");
 
@@ -56,7 +57,7 @@ router.get("/:id", requireAuth, getUser);
 
 router.post(
   "/signup",
-  signUpSignInLimiter,
+  loginLimiter, 
   avatarUpload.single("avatar"),
   addUserValidator,
   addUserValidatorHandler,
@@ -67,7 +68,7 @@ router.post(
 router.post("/refresh-token", refreshToken);
 router.post(
   "/signin",
-  signUpSignInLimiter,
+  loginLimiter,
   requestIp.mw(),
   useragent.express(),
   signin,
